@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聚合图床文件上传</title>
+    <style>
+        /* 重置默认样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* 设置页面的字体和添加背景图片 */
+        body {
+            font-family: Arial, sans-serif;
+            background: url('https://ps.ssl.qhimg.com/t02906637da23a078da.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        /* 容器样式 */
+        .container {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        /* 标题样式 */
+        h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        /* 文件输入框样式 */
+        input[type="file"] {
+            display: block;
+            margin: 0 auto 20px;
+            padding: 8px;
+            background-color: #f7f7f7;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            color: #333;
+        }
+
+        /* 按钮通用样式 */
+        button {
+            background-color: #007BFF;
+            color: #fff;
+            padding: 12px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin: 5px;
+        }
+
+        /* 按钮悬浮效果 */
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* 禁用按钮样式 */
+        button:disabled {
+            background-color: #999;
+            cursor: not-allowed;
+            opacity: 0.6;
+            border: 1px solid #888;
+            color: #666;
+            text-decoration: line-through;
+        }
+
+        /* 进度条样式 */
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background-color: #ddd;
+            border-radius: 4px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #4caf50;
+            width: 0;
+            line-height: 30px;
+            text-align: center;
+            color: white;
+        }
+
+        /* 上传结果区域样式 */
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            font-size: 16px;
+            color: #333;
+            min-height: 40px;
+        }
+
+        /* 错误或成功的提示信息样式 */
+        .result.success {
+            border-color: #28a745;
+            background-color: #e9f7e8;
+        }
+
+        .result.error {
+            border-color: #dc3545;
+            background-color: #f8d7da;
+        }
+
+        /* 显示图片的样式 */
+        .uploaded-image {
+            margin-top: 20px;
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        /* 图片链接居中样式 */
+        .center-url {
+            text-align: center;
+            margin: 15px 0;
+            padding: 10px;
+        }
+
+        .center-url a {
+            color: #007BFF;
+            font-size: 18px;
+            font-weight: bold;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .center-url a:hover {
+            color: #0056b3;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>聚合图床文件上传</h2>
+        <input type="file" id="fileInput">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressBar"></div>
+        </div>
+        <div class="result" id="resultDiv"></div>
+        <button id="neteaseUploadBtn">网易图床</button>
+        <button id="_360UploadBtn">360 图床</button>
+        <button id="sougouUploadBtn">搜狗图床</button>
+        <button id="jdUploadBtn">京东图床</button>
+        <button id="yzUploadBtn">邮政图床</button>
+        <button id="imgbbUploadBtn">ImgBB图床</button>
+        <button id="copyUrlBtn">复制图片链接</button>
+        <button id="resetBtn">重置</button>
+    </div>
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const resultDiv = document.getElementById('resultDiv');
+        const progressBar = document.getElementById('progressBar');
+        const copyUrlBtn = document.getElementById('copyUrlBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const uploadButtons = document.querySelectorAll('button:not(#copyUrlBtn, #resetBtn)');
+
+        function showMessage(message, isError = false) {
+            resultDiv.classList.remove('success', 'error');
+            if (isError) {
+                resultDiv.classList.add('error');
+            } else {
+                resultDiv.classList.add('success');
+            }
+            resultDiv.textContent = message;
+        }
+
+        async function bindUploadButton(button, url) {
+            button.addEventListener('click', async () => {
+                const file = fileInput.files[0];
+                if (!file) {
+                    showMessage('请先选择文件！', true);
+                    return;
+                }
+
+                const fileSize = file.size;
+                const twoMB = 2 * 1024 * 1024;
+                const fiveMB = 5 * 1024 * 1024;
+                const maxFileSize = 32 * 1024 * 1024;
+                const allowedTypes = ['image/jpeg', 'image/png', 'image/bmp', 'image/gif', 'image/tiff', 'image/webp', 'image/heic', 'image/avif', 'application/pdf'];
+
+                if (url === 'https://api.xinyew.cn/api/psbctc' && fileSize > twoMB) {
+                    showMessage('上传的图片大小超过2MB，无法使用邮政图床上传！', true);
+                    return;
+                }
+
+                if (url === 'https://api.xinyew.cn/api/jdtc' && fileSize > fiveMB) {
+                    showMessage('上传的图片大小超过5MB，无法使用京东图床上传！', true);
+                    return;
+                }
+
+                if (url.includes('imgbb.com')) {
+                    // 检查文件类型
+                    if (!allowedTypes.includes(file.type)) {
+                        showMessage('不支持的文件类型，请选择 JPG、PNG、BMP、GIF、TIF、WEBP、HEIC、AVIF 或 PDF 文件。', true);
+                        return;
+                    }
+
+                    // 检查文件大小
+                    if (file.size > maxFileSize) {
+                        showMessage('文件大小超过 32MB 限制，请选择较小的文件。', true);
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('image', file);
+
+                    // ImgBB API 密钥
+                    const apiKey = '';
+
+                    // 检查 API Key 是否为空
+                    if (!apiKey) {
+                        showMessage('请先填写 ImgBB API Key！', true);
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const data = await response.json();
+                        if (data.success) {
+                            const imageUrl = data.data.url;
+                            resultDiv.innerHTML = `上传成功！<br>图片链接: <a href="${imageUrl}" target="_blank">${imageUrl}</a>`;
+                            disableUploadButtons();
+                        } else {
+                            showMessage(data.error.message, true);
+                        }
+                    } catch (error) {
+                        showMessage(`发生错误: ${error.message}`, true);
+                    }
+                } else {
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', url, true);
+                    xhr.onreadystatechange = function () {
+                        if (xhr.readyState === 4) {
+                            if (xhr.status === 200) {
+                                const data = JSON.parse(xhr.responseText);
+                                if (data.errno === 0) {
+                                    const imageUrl = data.data.url;
+                                    resultDiv.innerHTML = `
+                                        <p>上传成功！</p>
+                                        <p class="center-url">图片链接: <a href="${data.data.url}" target="_blank">${data.data.url}</a></p>
+                                        <p>图片文件名: ${data.data.imgFile}</p>
+                                        <img src="${data.data.url}" alt="上传的图片" class="uploaded-image" />
+                                    `;
+                                    disableUploadButtons();
+                                } else {
+                                    showMessage(data.error, true);
+                                }
+                            } else {
+                                showMessage('请求发生错误：' + xhr.statusText, true);
+                            }
+                        }
+                    };
+                    xhr.send(formData);
+                }
+            });
+        }
+
+        // 绑定所有上传按钮事件
+        bindUploadButton(document.getElementById('neteaseUploadBtn'), 'https://api.xinyew.cn/api/yanxuantc');
+        bindUploadButton(document.getElementById('_360UploadBtn'), 'https://api.xinyew.cn/api/360tc');
+        bindUploadButton(document.getElementById('sougouUploadBtn'), 'https://api.xinyew.cn/api/sogotc');
+        bindUploadButton(document.getElementById('jdUploadBtn'), 'https://api.xinyew.cn/api/jdtc');
+        bindUploadButton(document.getElementById('yzUploadBtn'), 'https://api.xinyew.cn/api/psbctc');
+        // 这里传递的 URL 只需要基本的 API 地址，具体参数在函数内部处理
+        bindUploadButton(document.getElementById('imgbbUploadBtn'), 'https://api.imgbb.com/1/upload');
+
+        function disableUploadButtons() {
+            uploadButtons.forEach(button => {
+                button.disabled = true;
+                button.title = '请先点击重置按钮';
+            });
+        }
+
+        function enableUploadButtons() {
+            uploadButtons.forEach(button => {
+                button.disabled = false;
+                button.removeAttribute('title');
+            });
+        }
+
+        // 复制图片链接按钮点击事件
+        copyUrlBtn.addEventListener('click', function () {
+            const linkElement = resultDiv.querySelector('a');
+            if (linkElement) {
+                const imageUrl = linkElement.href;
+                navigator.clipboard.writeText(imageUrl)
+                   .then(() => {
+                        showMessage('图片链接已复制到剪贴板');
+                    })
+                   .catch((err) => {
+                        console.error('复制失败:', err);
+                        showMessage('复制失败，请手动复制', true);
+                    });
+            } else {
+                showMessage('暂无图片链接可复制', true);
+            }
+        });
+
+        // 重置按钮点击事件
+        resetBtn.addEventListener('click', function () {
+            fileInput.value = '';
+            showMessage('');
+            progressBar.style.width = '0%';
+            progressBar.innerHTML = '0%';
+            enableUploadButtons();
+        });
+    </script>
+</body>
+
+</html>
